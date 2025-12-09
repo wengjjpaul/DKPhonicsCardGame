@@ -1,0 +1,44 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Game {
+  id              String   @id @default(cuid())
+  code            String   @unique // 4-letter join code
+  status          String   @default("waiting") // waiting, playing, finished
+  hostSessionId   String // Session ID of host
+  currentPlayer   Int      @default(0)
+  direction       Int      @default(1) // 1 or -1
+  currentSuit     String?
+  drawPile        String // JSON array of card IDs
+  playPile        String // JSON array of card IDs
+  winnerSessionId String?
+  settings        String // JSON settings object
+  players         Player[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Player {
+  id          String   @id @default(cuid())
+  sessionId   String // From cookie session
+  name        String
+  hand        String // JSON array of card IDs
+  position    Int
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  gameId      String
+  isHost      Boolean  @default(false)
+  isConnected Boolean  @default(true)
+  lastSeen    DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([gameId, sessionId]) // One player per session per game
+}
