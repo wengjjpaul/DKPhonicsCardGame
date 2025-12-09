@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { Modal } from './Modal';
 import { ALL_SUITS, SuitInfo } from '@/lib/game/suits';
 import { cn } from '@/lib/utils';
+import { playSound } from '@/lib/audio';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export type SuitPickerProps = {
   isOpen: boolean;
@@ -13,7 +15,12 @@ export type SuitPickerProps = {
 };
 
 export function SuitPicker({ isOpen, onSelect, onClose }: SuitPickerProps) {
+  const soundEnabled = useSettingsStore((state) => state.soundEnabled);
+
   const handleSelect = (suit: SuitInfo) => {
+    if (soundEnabled) {
+      playSound('suitChange');
+    }
     onSelect(suit.id);
     onClose();
   };

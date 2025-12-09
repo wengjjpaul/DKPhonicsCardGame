@@ -1,11 +1,12 @@
 // Online game room page - lobby and game play
 'use client';
 
-import { useState, useEffect, use, useCallback } from 'react';
+import { useState, useEffect, use, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnlineGame } from '@/hooks/useOnlineGame';
 import { useCelebration } from '@/hooks/useCelebration';
+import { useGameSounds } from '@/hooks/useGameSounds';
 import { Button, Input, SuitPicker, Celebration } from '@/components/ui';
 import { DraggableCard } from '@/components/cards';
 import { GameDndContext, DroppablePlayPile } from '@/components/game';
@@ -31,6 +32,14 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
 
   // Celebration hook
   const { celebrate, message: celebrationMessage, isAnimating: isCelebrating } = useCelebration();
+
+  // Sound effects hook
+  const { play: playSound, playWin } = useGameSounds();
+
+  // Track previous state for sound triggers
+  const prevIsMyTurn = useRef<boolean | null>(null);
+  const prevPlayerCount = useRef<number>(0);
+  const prevGameStatus = useRef<string | null>(null);
 
   const {
     game,
@@ -84,6 +93,34 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
     };
   }, [code, isPlayer, game?.status]);
 
+  // Sound effects for game state changes
+  useEffect(() => {
+    if (!game) return;
+
+    // Play sound when it becomes your turn
+    if (isMyTurn && prevIsMyTurn.current === false) {
+      playSound('turnStart');
+    }
+    prevIsMyTurn.current = isMyTurn;
+
+    // Play sound when player joins (only in waiting state)
+    if (game.status === 'waiting' && game.players.length > prevPlayerCount.current) {
+      playSound('playerJoin');
+    }
+    prevPlayerCount.current = game.players.length;
+
+    // Play sound when game starts
+    if (game.status === 'playing' && prevGameStatus.current === 'waiting') {
+      playSound('gameStart');
+    }
+    
+    // Play win celebration when game finishes
+    if (game.status === 'finished' && prevGameStatus.current === 'playing') {
+      playWin();
+    }
+    prevGameStatus.current = game.status;
+  }, [game, isMyTurn, playSound, playWin]);
+
   // Handle joining the game
   const handleJoin = async () => {
     if (!playerName.trim()) return;
@@ -122,9 +159,15 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
       setSelectedCardId(null);
       setPendingCardId(null);
       setShowSuitPicker(false);
-      // Trigger celebration on successful card play!
+      // Play card sound and celebration
+      playSound('cardPlay');
       celebrate('match');
+      // Play suit change sound if it was a change card
+      if (card && isActionCard(card) && card.action === 'change') {
+        playSound('suitChange');
+      }
     } else {
+      playSound('error');
       setActionError(result.error || 'Failed to play card');
     }
   };
@@ -146,18 +189,23 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
     playCard(cardId).then(result => {
       if (result.success) {
         setSelectedCardId(null);
-        // Trigger celebration on successful card play!
+        // Play card sound and celebration
+        playSound('cardPlay');
         celebrate('match');
       } else {
+        playSound('error');
         setActionError(result.error || 'Failed to play card');
       }
     });
-  }, [game?.currentPlayer?.hand, playCard, celebrate]);
+  }, [game?.currentPlayer?.hand, playCard, celebrate, playSound]);
 
   // Handle drawing a card
   const handleDraw = async () => {
     const result = await drawCard();
-    if (!result.success) {
+    if (result.success) {
+      playSound('cardDraw');
+    } else {
+      playSound('error');
       setActionError(result.error || 'Failed to draw card');
     }
   };

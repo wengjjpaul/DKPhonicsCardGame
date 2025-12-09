@@ -3,6 +3,8 @@
 
 import { useCallback, useState } from 'react';
 import confetti from 'canvas-confetti';
+import { playSound, playWinCelebration } from '@/lib/audio';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export type CelebrationType = 'match' | 'win' | 'draw';
 
@@ -32,6 +34,7 @@ const celebrationMessages = {
 export function useCelebration() {
   const [message, setMessage] = useState<string | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const soundEnabled = useSettingsStore((state) => state.soundEnabled);
 
   const triggerConfetti = useCallback((type: CelebrationType = 'match') => {
     // Set random message
@@ -39,6 +42,15 @@ export function useCelebration() {
     const randomMessage = messages[Math.floor(Math.random() * messages.length)];
     setMessage(randomMessage);
     setIsAnimating(true);
+
+    // Play celebration sound
+    if (soundEnabled) {
+      if (type === 'win') {
+        playWinCelebration();
+      } else {
+        playSound('celebration');
+      }
+    }
 
     // Different confetti patterns based on celebration type
     if (type === 'win') {
@@ -96,7 +108,7 @@ export function useCelebration() {
       setMessage(null);
       setIsAnimating(false);
     }, type === 'win' ? 3000 : 1500);
-  }, []);
+  }, [soundEnabled]);
 
   const celebrate = useCallback((type: CelebrationType = 'match') => {
     triggerConfetti(type);

@@ -9,6 +9,9 @@ export type SettingsState = {
   ttsSpeed: 'normal' | 'slow';
   ttsVolume: number; // 0-1
 
+  // Sound effects
+  soundEnabled: boolean;
+
   // Accessibility
   largeFont: boolean;
   highContrast: boolean;
@@ -24,6 +27,7 @@ export type SettingsState = {
   setLargeFont: (enabled: boolean) => void;
   setHighContrast: (enabled: boolean) => void;
   setReduceMotion: (enabled: boolean) => void;
+  setSoundEnabled: (enabled: boolean) => void;
   setDefaultGameSettings: (settings: Partial<GameSettings>) => void;
   resetSettings: () => void;
 };
@@ -32,6 +36,7 @@ const initialState = {
   ttsEnabled: true,
   ttsSpeed: 'normal' as const,
   ttsVolume: 0.8,
+  soundEnabled: true,
   largeFont: false,
   highContrast: false,
   reduceMotion: false,
@@ -54,6 +59,8 @@ export const useSettingsStore = create<SettingsState>()(
       setHighContrast: (enabled) => set({ highContrast: enabled }),
 
       setReduceMotion: (enabled) => set({ reduceMotion: enabled }),
+
+      setSoundEnabled: (enabled) => set({ soundEnabled: enabled }),
 
       setDefaultGameSettings: (settings) =>
         set((state) => ({

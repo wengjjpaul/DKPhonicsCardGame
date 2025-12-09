@@ -4,6 +4,8 @@
 import { forwardRef, ButtonHTMLAttributes } from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { playSound } from '@/lib/audio';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -38,10 +40,20 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       disabled,
       className,
       children,
+      onClick,
       ...props
     },
     ref
   ) => {
+    const soundEnabled = useSettingsStore((state) => state.soundEnabled);
+
+    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+      if (!disabled && !isLoading && soundEnabled) {
+        playSound('buttonClick');
+      }
+      onClick?.(e);
+    };
+
     return (
       <motion.button
         ref={ref}
@@ -56,6 +68,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || isLoading}
         whileHover={!disabled && !isLoading ? { scale: 1.02 } : undefined}
         whileTap={!disabled && !isLoading ? { scale: 0.98 } : undefined}
+        onClick={handleClick}
         {...props}
       >
         {isLoading ? (

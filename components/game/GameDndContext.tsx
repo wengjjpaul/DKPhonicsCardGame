@@ -16,6 +16,8 @@ import {
 } from '@dnd-kit/core';
 import { Card as CardType, isPhonicsCard, isActionCard } from '@/types/card';
 import { PhonicsCard, ActionCard } from '@/components/cards';
+import { playSound } from '@/lib/audio';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export type GameDndContextProps = {
   children: ReactNode;
@@ -32,6 +34,7 @@ export function GameDndContext({
 }: GameDndContextProps) {
   const [activeCard, setActiveCard] = useState<CardType | null>(null);
   const [isValidDrop, setIsValidDrop] = useState(false);
+  const soundEnabled = useSettingsStore((state) => state.soundEnabled);
 
   // Configure sensors for both mouse and touch with activation constraints
   // Slightly delay for toddler touch - prevents accidental drags
@@ -56,8 +59,12 @@ export function GameDndContext({
     if (card) {
       setActiveCard(card);
       setIsValidDrop(canPlayCard(card));
+      // Play pickup sound
+      if (soundEnabled) {
+        playSound('cardPickup');
+      }
     }
-  }, [hand, canPlayCard]);
+  }, [hand, canPlayCard, soundEnabled]);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { over } = event;
@@ -72,11 +79,16 @@ export function GameDndContext({
     
     if (over?.id === 'play-pile' && activeCard && canPlayCard(activeCard)) {
       onCardDrop(String(active.id));
+    } else if (over?.id === 'play-pile' && activeCard && !canPlayCard(activeCard)) {
+      // Invalid drop - play error sound
+      if (soundEnabled) {
+        playSound('cardDrop');
+      }
     }
     
     setActiveCard(null);
     setIsValidDrop(false);
-  }, [activeCard, canPlayCard, onCardDrop]);
+  }, [activeCard, canPlayCard, onCardDrop, soundEnabled]);
 
   const handleDragCancel = useCallback(() => {
     setActiveCard(null);
