@@ -13,3 +13,6 @@ export type { CardBackProps } from './CardBack';
 
 export { CardFan } from './CardFan';
 export type { CardFanProps } from './CardFan';
+
+export { DraggableCard } from './DraggableCard';
+export type { DraggableCardProps } from './DraggableCard';

@@ -5,21 +5,12 @@ import { useState, useEffect, use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnlineGame } from '@/hooks/useOnlineGame';
-import { Button, Input, SuitPicker } from '@/components/ui';
-import { PhonicsCard, ActionCard } from '@/components/cards';
-import { Card, isActionCard, isPhonicsCard } from '@/types/card';
+import { useCelebration } from '@/hooks/useCelebration';
+import { Button, Input, SuitPicker, Celebration } from '@/components/ui';
+import { DraggableCard } from '@/components/cards';
+import { GameDndContext, DroppablePlayPile } from '@/components/game';
+import { Card, isActionCard } from '@/types/card';
 import { generateFunName, getNameEmoji } from '@/lib/names';
-
-// Helper component to render the correct card type
-function GameCard({ card, size = 'md', ...props }: { card: Card; size?: 'sm' | 'md' | 'lg'; selected?: boolean; playable?: boolean; onClick?: () => void }) {
-  if (isPhonicsCard(card)) {
-    return <PhonicsCard card={card} size={size} {...props} />;
-  }
-  if (isActionCard(card)) {
-    return <ActionCard card={card} size={size} {...props} />;
-  }
-  return null;
-}
 import { cn } from '@/lib/utils';
 
 type PageProps = {
@@ -36,6 +27,10 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [showSuitPicker, setShowSuitPicker] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingCardId, setPendingCardId] = useState<string | null>(null);
+
+  // Celebration hook
+  const { celebrate, message: celebrationMessage, isAnimating: isCelebrating } = useCelebration();
 
   const {
     game,
@@ -110,24 +105,54 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
 
   // Handle playing a card
   const handlePlayCard = async (declaredSuit?: string) => {
-    if (!selectedCardId) return;
+    const cardIdToPlay = pendingCardId || selectedCardId;
+    if (!cardIdToPlay) return;
     
-    const card = game?.currentPlayer?.hand.find(c => c.id === selectedCardId);
+    const card = game?.currentPlayer?.hand.find(c => c.id === cardIdToPlay);
     
     // If it's a change card and no suit selected, show picker
     if (card && isActionCard(card) && card.action === 'change' && !declaredSuit) {
+      setPendingCardId(cardIdToPlay);
       setShowSuitPicker(true);
       return;
     }
     
-    const result = await playCard(selectedCardId, declaredSuit);
+    const result = await playCard(cardIdToPlay, declaredSuit);
     if (result.success) {
       setSelectedCardId(null);
+      setPendingCardId(null);
       setShowSuitPicker(false);
+      // Trigger celebration on successful card play!
+      celebrate('match');
     } else {
       setActionError(result.error || 'Failed to play card');
     }
   };
+
+  // Handle card drop from drag and drop
+  const handleCardDrop = useCallback((cardId: string) => {
+    const card = game?.currentPlayer?.hand.find(c => c.id === cardId);
+    if (!card) return;
+    
+    // If it's a change card, we need to show suit picker
+    if (isActionCard(card) && card.action === 'change') {
+      setPendingCardId(cardId);
+      setShowSuitPicker(true);
+      return;
+    }
+    
+    // Play the card directly
+    setSelectedCardId(cardId);
+    playCard(cardId).then(result => {
+      if (result.success) {
+        setSelectedCardId(null);
+        // Trigger celebration on successful card play!
+        celebrate('match');
+      } else {
+        setActionError(result.error || 'Failed to play card');
+      }
+    });
+  }, [game?.currentPlayer?.hand, playCard, celebrate]);
 
   // Handle drawing a card
   const handleDraw = async () => {
@@ -142,6 +167,11 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
     await leaveGame();
     router.push('/online');
   };
+
+  // Check if a dragged card can be played (must be defined before early returns)
+  const checkCanPlayCard = useCallback((card: Card) => {
+    return isMyTurn && canPlayCard(card);
+  }, [isMyTurn, canPlayCard]);
 
   // Loading state
   if (isLoading) {
@@ -476,13 +506,24 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
   const disconnectedPlayers = game.players.filter(p => !p.isConnected);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-100 to-green-200 p-4">
-      {/* Suit Picker Modal */}
-      <SuitPicker
-        isOpen={showSuitPicker}
-        onSelect={(suit) => handlePlayCard(suit)}
-        onClose={() => setShowSuitPicker(false)}
-      />
+    <GameDndContext
+      onCardDrop={handleCardDrop}
+      canPlayCard={checkCanPlayCard}
+      hand={hand}
+    >
+      <div className="min-h-screen bg-gradient-to-b from-green-100 to-green-200 p-4">
+        {/* Celebration overlay */}
+        <Celebration message={celebrationMessage} isVisible={isCelebrating} />
+
+        {/* Suit Picker Modal */}
+        <SuitPicker
+          isOpen={showSuitPicker}
+          onSelect={(suit) => handlePlayCard(suit)}
+          onClose={() => {
+            setShowSuitPicker(false);
+            setPendingCardId(null);
+          }}
+        />
 
       {/* Disconnected players banner */}
       {disconnectedPlayers.length > 0 && (
@@ -522,7 +563,7 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
       </div>
 
       {/* Middle - Play area */}
-      <div className="flex items-center justify-center gap-4 mb-6">
+      <div className="flex items-center justify-center gap-6 mb-6">
         {/* Current suit */}
         {game.currentSuit && (
           <motion.div
@@ -536,32 +577,34 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
           </motion.div>
         )}
 
-        {/* Top card */}
-        {game.topCard && (
-          <div className="relative">
-            <GameCard card={game.topCard} size="lg" />
-            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded">
-              {game.playPileCount} cards
-            </span>
-          </div>
-        )}
+        {/* Droppable Play Pile */}
+        <DroppablePlayPile
+          topCard={game.topCard}
+          cardCount={game.playPileCount}
+          isMyTurn={isMyTurn}
+        />
 
         {/* Draw pile */}
         <motion.button
           className={cn(
-            'w-20 h-28 rounded-xl shadow-lg flex items-center justify-center',
-            'bg-gradient-to-br from-blue-600 to-blue-800',
-            mustDraw && isMyTurn ? 'ring-4 ring-yellow-400' : ''
+            'w-24 h-36 rounded-xl shadow-lg flex items-center justify-center',
+            'bg-gradient-to-br from-blue-500 to-blue-700',
+            mustDraw && isMyTurn ? 'ring-4 ring-yellow-400 animate-pulse' : ''
           )}
           onClick={handleDraw}
           disabled={!mustDraw || !isMyTurn}
-          whileHover={mustDraw && isMyTurn ? { scale: 1.05 } : {}}
-          whileTap={mustDraw && isMyTurn ? { scale: 0.98 } : {}}
+          whileHover={mustDraw && isMyTurn ? { scale: 1.08 } : {}}
+          whileTap={mustDraw && isMyTurn ? { scale: 0.95 } : {}}
         >
-          <span className="text-white text-sm font-bold">
-            Draw
-            <br />({game.drawPileCount})
-          </span>
+          <div className="text-center">
+            <span className="text-3xl block mb-1">🃏</span>
+            <span className="text-white text-sm font-bold">
+              Draw
+            </span>
+            <span className="text-white/80 text-xs block">
+              ({game.drawPileCount})
+            </span>
+          </div>
         </motion.button>
       </div>
 
@@ -577,25 +620,32 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
         {isMyTurn ? "🎯 Your turn!" : `Waiting for ${game.players[game.currentPlayerIndex]?.name}...`}
       </motion.div>
 
-      {/* Player's hand */}
+      {/* Player's hand - Draggable cards */}
       <div className="mt-4">
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-3">
           {hand.map((card) => (
-            <motion.div
+            <DraggableCard
               key={card.id}
-              className={cn(
-                'cursor-pointer transition-transform',
-                selectedCardId === card.id && 'ring-4 ring-yellow-400 rounded-xl',
-                !playableCardIds.includes(card.id) && isMyTurn && 'opacity-50'
-              )}
-              onClick={() => isMyTurn && setSelectedCardId(card.id)}
-              whileHover={isMyTurn ? { y: -10 } : {}}
-              whileTap={isMyTurn ? { scale: 0.95 } : {}}
-            >
-              <GameCard card={card} size="md" />
-            </motion.div>
+              card={card}
+              size="md"
+              isPlayable={playableCardIds.includes(card.id)}
+              isSelected={selectedCardId === card.id}
+              disabled={!isMyTurn}
+              onSelect={() => isMyTurn && setSelectedCardId(card.id)}
+            />
           ))}
         </div>
+
+        {/* Instructions for toddlers */}
+        {isMyTurn && hand.length > 0 && (
+          <motion.div
+            className="text-center mt-4 text-green-700 font-medium"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <span className="text-2xl">👆</span> Drag a card to the pile or tap to select!
+          </motion.div>
+        )}
 
         {/* Action buttons */}
         {isMyTurn && (
@@ -604,12 +654,13 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
               onClick={() => handlePlayCard()}
               disabled={!selectedCardId || !playableCardIds.includes(selectedCardId)}
               size="lg"
+              className="text-lg px-8 py-4"
             >
-              Play Card
+              Play Card 🎴
             </Button>
             {mustDraw && (
-              <Button onClick={handleDraw} variant="secondary" size="lg">
-                Draw Card
+              <Button onClick={handleDraw} variant="secondary" size="lg" className="text-lg px-8 py-4">
+                Draw Card 🃏
               </Button>
             )}
           </div>
@@ -630,5 +681,6 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
         </button>
       </div>
     </div>
+    </GameDndContext>
   );
 }

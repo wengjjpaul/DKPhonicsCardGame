@@ -24,3 +24,186 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ===== Toddler-Friendly UI Enhancements ===== */
+
+/* Smooth and bouncy animations */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+@keyframes bounce-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7);
+  }
+  50% { 
+    box-shadow: 0 0 20px 10px rgba(251, 191, 36, 0.3);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-5px) rotate(2deg); }
+  75% { transform: translateY(5px) rotate(-2deg); }
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+/* Apply animations to interactive elements */
+.animate-wiggle {
+  animation: wiggle 0.5s ease-in-out;
+}
+
+.animate-bounce-soft {
+  animation: bounce-soft 1s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-sparkle {
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
+/* Large touch targets for toddlers (min 48px) */
+.touch-target {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 12px;
+}
+
+/* Card hover effects - kid-friendly */
+.card-hover {
+  transition: all 0.2s ease-out;
+}
+
+.card-hover:hover {
+  transform: translateY(-8px) scale(1.05);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.card-hover:active {
+  transform: scale(0.95);
+}
+
+/* Playable card indicator */
+.card-playable {
+  position: relative;
+}
+
+.card-playable::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 16px;
+  border: 3px dashed #22c55e;
+  opacity: 0;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.card-playable:hover::after {
+  opacity: 1;
+}
+
+/* Drop zone styling */
+.drop-zone {
+  transition: all 0.3s ease;
+  border-radius: 24px;
+}
+
+.drop-zone-active {
+  background: rgba(34, 197, 94, 0.1);
+  border: 3px dashed #22c55e;
+}
+
+.drop-zone-invalid {
+  background: rgba(239, 68, 68, 0.1);
+  border: 3px dashed #ef4444;
+}
+
+/* Celebration effects */
+.celebration-text {
+  text-shadow: 
+    2px 2px 0 #fff,
+    -2px -2px 0 #fff,
+    2px -2px 0 #fff,
+    -2px 2px 0 #fff,
+    3px 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Button enhancements for toddlers */
+button {
+  transition: all 0.2s ease;
+}
+
+button:not(:disabled):hover {
+  transform: scale(1.05);
+}
+
+button:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+/* Rounded corners everywhere for friendly feel */
+.rounded-friendly {
+  border-radius: 16px;
+}
+
+/* High contrast for readability */
+.high-contrast {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* Disable text selection during drag */
+.dragging,
+.dragging * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Mobile-first touch improvements */
+@media (pointer: coarse) {
+  /* Larger touch targets on touch devices */
+  .touch-target {
+    min-width: 56px;
+    min-height: 56px;
+  }
+  
+  /* Disable hover effects that might be confusing */
+  .card-hover:hover {
+    transform: none;
+  }
+  
+  /* Keep active state for feedback */
+  .card-hover:active {
+    transform: scale(0.95);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* Accessibility - reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

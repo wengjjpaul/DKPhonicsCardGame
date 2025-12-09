@@ -13,3 +13,9 @@ export type { PlayerListProps } from './PlayerList';
 
 export { SuitIndicator } from './SuitIndicator';
 export type { SuitIndicatorProps } from './SuitIndicator';
+
+export { DroppablePlayPile } from './DroppablePlayPile';
+export type { DroppablePlayPileProps } from './DroppablePlayPile';
+
+export { GameDndContext, useGameDndState } from './GameDndContext';
+export type { GameDndContextProps } from './GameDndContext';

@@ -229,8 +229,12 @@ export function useOnlineGame(gameCode: string): OnlineGameState {
   const canPlayCard = useCallback((card: Card) => {
     if (!game || !isMyTurn) return false;
     
-    const topCard = game.topCard;
     const currentSuit = game.currentSuit;
+    
+    // If no current suit (start of game), any card can be played
+    if (!currentSuit) {
+      return true;
+    }
     
     // Action cards can always be played
     if (isActionCard(card)) return true;

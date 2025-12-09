@@ -10,3 +10,6 @@ export type { SuitPickerProps } from './SuitPicker';
 
 export { Input } from './Input';
 export type { InputProps } from './Input';
+
+export { Celebration } from './Celebration';
+export type { CelebrationProps } from './Celebration';
