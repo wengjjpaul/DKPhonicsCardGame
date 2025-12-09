@@ -1,11 +1,18 @@
-// Hook for online game state with polling
+// Hook for online game state with adaptive polling
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ClientGameState } from '@/types/game';
 import { Card, isActionCard } from '@/types/card';
 
-const POLL_INTERVAL = 1500; // 1.5 seconds
+// Adaptive polling intervals (3s minimum)
+const POLL_INTERVALS = {
+  waiting: 5000,      // 5 seconds in lobby
+  myTurn: 3000,       // 3 seconds when it's my turn (minimum)
+  otherTurn: 4000,    // 4 seconds when waiting for others
+  baseError: 6000,    // 6 seconds after error (doubles on repeated errors)
+  maxError: 24000,    // Max 24 seconds between retries
+};
 
 type OnlineGameState = {
   // Game state from server
@@ -39,12 +46,60 @@ export function useOnlineGame(gameCode: string): OnlineGameState {
   const [isPolling, setIsPolling] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateTimeRef = useRef<string | null>(null);
+  const consecutiveErrorsRef = useRef(0);
+  const isVisibleRef = useRef(true);
 
-  // Fetch game state
-  const fetchGame = useCallback(async (showLoading = false) => {
-    if (showLoading) setIsLoading(true);
+  // Calculate adaptive poll interval based on game state
+  const getPollInterval = useCallback((currentGame: ClientGameState | null, hasError: boolean) => {
+    // Error backoff: double interval for each consecutive error (up to max)
+    if (hasError) {
+      const errorInterval = POLL_INTERVALS.baseError * Math.pow(2, consecutiveErrorsRef.current);
+      return Math.min(errorInterval, POLL_INTERVALS.maxError);
+    }
+    
+    // Reset error count on success
+    consecutiveErrorsRef.current = 0;
+    
+    if (!currentGame) return POLL_INTERVALS.waiting;
+    
+    // Waiting lobby - less urgent
+    if (currentGame.status === 'waiting') {
+      return POLL_INTERVALS.waiting;
+    }
+    
+    // Game in progress - check if it's my turn
+    if (currentGame.status === 'playing') {
+      const isMyTurn = currentGame.currentPlayer?.isCurrentTurn ?? false;
+      return isMyTurn ? POLL_INTERVALS.myTurn : POLL_INTERVALS.otherTurn;
+    }
+    
+    // Default (shouldn't reach here as finished games stop polling)
+    return POLL_INTERVALS.otherTurn;
+  }, []);
+
+  // Schedule next poll with adaptive interval
+  const scheduleNextPoll = useCallback((currentGame: ClientGameState | null, hasError: boolean) => {
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+    }
+    
+    // Don't poll if tab is hidden or game is finished
+    if (!isVisibleRef.current || currentGame?.status === 'finished') {
+      return;
+    }
+    
+    const interval = getPollInterval(currentGame, hasError);
+    pollTimeoutRef.current = setTimeout(() => {
+      fetchGameAndSchedule();
+    }, interval);
+  }, [getPollInterval]);
+
+  // Fetch game state and schedule next poll
+  const fetchGameAndSchedule = useCallback(async () => {
+    let hasError = false;
+    let currentGame: ClientGameState | null = null;
     
     try {
       const response = await fetch(`/api/game/${gameCode}`);
@@ -52,54 +107,91 @@ export function useOnlineGame(gameCode: string): OnlineGameState {
       
       if (!response.ok) {
         setError(data.error || 'Failed to fetch game');
-        return;
+        hasError = true;
+        consecutiveErrorsRef.current++;
+      } else {
+        // Only update state if game has changed
+        if (data.updatedAt !== lastUpdateTimeRef.current) {
+          lastUpdateTimeRef.current = data.updatedAt;
+          setGame(data.game);
+          setIsPlayer(data.isPlayer);
+          setLastUpdated(new Date(data.updatedAt));
+        }
+        currentGame = data.game;
+        setError(null);
+        consecutiveErrorsRef.current = 0;
       }
-      
-      // Only update state if game has changed
-      if (data.updatedAt !== lastUpdateTimeRef.current) {
-        lastUpdateTimeRef.current = data.updatedAt;
-        setGame(data.game);
-        setIsPlayer(data.isPlayer);
-        setLastUpdated(new Date(data.updatedAt));
-      }
-      
-      setError(null);
     } catch (err) {
       setError('Network error. Please check your connection.');
       console.error('Error fetching game:', err);
+      hasError = true;
+      consecutiveErrorsRef.current++;
     } finally {
       setIsLoading(false);
     }
-  }, [gameCode]);
+    
+    // Schedule next poll with adaptive interval
+    scheduleNextPoll(currentGame ?? game, hasError);
+  }, [gameCode, game, scheduleNextPoll]);
+
+  // Fetch game state (for initial load and manual refresh)
+  const fetchGame = useCallback(async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
+    await fetchGameAndSchedule();
+  }, [fetchGameAndSchedule]);
 
   // Start polling
   const startPolling = useCallback(() => {
-    if (pollIntervalRef.current) return;
-    
+    if (isPolling) return;
     setIsPolling(true);
-    pollIntervalRef.current = setInterval(() => {
-      fetchGame(false);
-    }, POLL_INTERVAL);
-  }, [fetchGame]);
+    isVisibleRef.current = true;
+    // Initial fetch will trigger the polling chain
+  }, [isPolling]);
 
   // Stop polling
   const stopPolling = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
     }
     setIsPolling(false);
   }, []);
 
+  // Handle visibility change - pause polling when tab is hidden
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        isVisibleRef.current = false;
+        // Clear pending poll
+        if (pollTimeoutRef.current) {
+          clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
+        }
+      } else {
+        isVisibleRef.current = true;
+        // Resume polling with immediate fetch if we were polling
+        if (isPolling && game?.status !== 'finished') {
+          fetchGameAndSchedule();
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isPolling, game?.status, fetchGameAndSchedule]);
+
   // Initial fetch and start polling
   useEffect(() => {
-    fetchGame(true);
+    setIsLoading(true);
     startPolling();
+    fetchGameAndSchedule();
     
     return () => {
       stopPolling();
     };
-  }, [fetchGame, startPolling, stopPolling]);
+  }, []);
 
   // Stop polling when game is finished
   useEffect(() => {

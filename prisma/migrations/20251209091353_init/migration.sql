@@ -1,6 +1,6 @@
 -- CreateTable
 CREATE TABLE "Game" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'waiting',
     "hostSessionId" TEXT NOT NULL,
@@ -11,13 +11,15 @@ CREATE TABLE "Game" (
     "playPile" TEXT NOT NULL,
     "winnerSessionId" TEXT,
     "settings" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Game_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Player" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "hand" TEXT NOT NULL,
@@ -25,9 +27,10 @@ CREATE TABLE "Player" (
     "gameId" TEXT NOT NULL,
     "isHost" BOOLEAN NOT NULL DEFAULT false,
     "isConnected" BOOLEAN NOT NULL DEFAULT true,
-    "lastSeen" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Player_gameId_fkey" FOREIGN KEY ("gameId") REFERENCES "Game" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "lastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Player_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -35,3 +38,6 @@ CREATE UNIQUE INDEX "Game_code_key" ON "Game"("code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Player_gameId_sessionId_key" ON "Player"("gameId", "sessionId");
+
+-- AddForeignKey
+ALTER TABLE "Player" ADD CONSTRAINT "Player_gameId_fkey" FOREIGN KEY ("gameId") REFERENCES "Game"("id") ON DELETE CASCADE ON UPDATE CASCADE;
