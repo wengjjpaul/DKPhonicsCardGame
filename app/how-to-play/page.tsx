@@ -101,7 +101,7 @@ export default function HowToPlayPage() {
           transition={{ delay: 0.6 }}
         >
           <Button
-            onClick={() => router.push('/setup')}
+            onClick={() => router.push('/online')}
             className="w-full bg-green-600 hover:bg-green-700"
             size="lg"
           >

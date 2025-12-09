@@ -33,7 +33,9 @@ function getProgressFromStorage(): ProgressData {
   return defaultProgress;
 }
 
-// Version counter to force re-render when localStorage changes in the same window
+// Cache for the snapshot to avoid infinite loops with useSyncExternalStore
+let cachedSnapshot: ProgressData | null = null;
+let cachedVersion = -1;
 let storageVersion = 0;
 const storageListeners = new Set<() => void>();
 
@@ -48,31 +50,30 @@ function subscribeToStorage(callback: () => void) {
 
 function notifyStorageChange() {
   storageVersion++;
+  cachedSnapshot = null; // Invalidate cache
   storageListeners.forEach(listener => listener());
 }
 
-function getStorageSnapshot(): ProgressData & { _version: number } {
-  return { ...getProgressFromStorage(), _version: storageVersion };
+function getStorageSnapshot(): ProgressData {
+  if (cachedSnapshot === null || cachedVersion !== storageVersion) {
+    cachedSnapshot = getProgressFromStorage();
+    cachedVersion = storageVersion;
+  }
+  return cachedSnapshot;
 }
+
+const serverSnapshot: ProgressData = defaultProgress;
 
 export default function ProgressPage() {
   const router = useRouter();
   const [, forceUpdate] = useState(0);
   
   // Use useSyncExternalStore to properly sync with localStorage
-  const progressData = useSyncExternalStore(
+  const progress = useSyncExternalStore(
     subscribeToStorage,
     getStorageSnapshot,
-    () => ({ ...defaultProgress, _version: 0 }) // Server snapshot
+    () => serverSnapshot
   );
-  
-  // Extract progress without the version
-  const progress = {
-    gamesPlayed: progressData.gamesPlayed,
-    gamesWon: progressData.gamesWon,
-    wordsPracticed: progressData.wordsPracticed,
-    lastPlayed: progressData.lastPlayed,
-  };
 
   const uniqueWords = [...new Set(progress.wordsPracticed)];
   const winRate = progress.gamesPlayed > 0 
@@ -169,7 +170,7 @@ export default function ProgressPage() {
           transition={{ delay: 0.4 }}
         >
           <Button
-            onClick={() => router.push('/setup')}
+            onClick={() => router.push('/online')}
             className="w-full bg-green-600 hover:bg-green-700"
             size="lg"
           >

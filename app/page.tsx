@@ -61,8 +61,8 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
         >
-          {/* Local Game */}
-          <Link href="/setup" className="block">
+          {/* Online Game */}
+          <Link href="/online" className="block">
             <motion.div
               className="bg-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-shadow"
               whileHover={{ scale: 1.02 }}
@@ -71,24 +71,7 @@ export default function Home() {
               <div className="flex items-center gap-4">
                 <div className="text-4xl">🎮</div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-800">Local Game</h2>
-                  <p className="text-gray-600">Play on one device (pass & play)</p>
-                </div>
-              </div>
-            </motion.div>
-          </Link>
-
-          {/* Online Game */}
-          <Link href="/online" className="block">
-            <motion.div
-              className="bg-white/90 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-shadow"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="flex items-center gap-4">
-                <div className="text-4xl">🌐</div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-800">Online Game</h2>
+                  <h2 className="text-xl font-bold text-gray-800">Play Online</h2>
                   <p className="text-gray-600">Play with friends online</p>
                 </div>
               </div>
@@ -96,24 +79,26 @@ export default function Home() {
           </Link>
 
           {/* How to Play */}
-          <motion.div
-            className="bg-white/80 rounded-2xl p-6 shadow-xl cursor-pointer"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <div className="flex items-center gap-4">
-              <div className="text-4xl">📖</div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-800">How to Play</h2>
-                <p className="text-gray-600">Learn the rules</p>
+          <Link href="/how-to-play" className="block">
+            <motion.div
+              className="bg-white/90 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-shadow"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <div className="flex items-center gap-4">
+                <div className="text-4xl">📖</div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">How to Play</h2>
+                  <p className="text-gray-600">Learn the rules</p>
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </Link>
 
           {/* Progress */}
           <Link href="/progress" className="block">
             <motion.div
-              className="bg-white/70 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-shadow"
+              className="bg-white/80 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-shadow"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
