@@ -1,24 +1,41 @@
 // Create game page - set name and create a new online game
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Input } from '@/components/ui';
+import { generateFunName, getNameEmoji } from '@/lib/names';
 
 export default function CreateGamePage() {
   const router = useRouter();
   const [playerName, setPlayerName] = useState('');
+  const [nameEmoji, setNameEmoji] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize session on mount
+  // Generate a fun name
+  const generateNewName = useCallback(() => {
+    setIsGenerating(true);
+    // Small delay for animation effect
+    setTimeout(() => {
+      const newName = generateFunName();
+      setPlayerName(newName);
+      setNameEmoji(getNameEmoji(newName));
+      setIsGenerating(false);
+    }, 150);
+  }, []);
+
+  // Initialize session and generate initial name on mount
   useEffect(() => {
     const initSession = async () => {
       try {
         // This will create a session if one doesn't exist
         await fetch('/api/session');
+        // Generate initial fun name
+        generateNewName();
       } catch (err) {
         console.error('Failed to initialize session:', err);
       } finally {
@@ -26,7 +43,7 @@ export default function CreateGamePage() {
       }
     };
     initSession();
-  }, []);
+  }, [generateNewName]);
 
   const handleCreate = async () => {
     if (!playerName.trim()) {
@@ -90,16 +107,88 @@ export default function CreateGamePage() {
           transition={{ delay: 0.1 }}
         >
           <div className="space-y-4">
+            {/* Name display with emoji */}
+            <div className="text-center mb-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={playerName}
+                  initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="relative"
+                >
+                  {nameEmoji && (
+                    <motion.span
+                      className="text-5xl block mb-2"
+                      initial={{ rotate: -20, scale: 0 }}
+                      animate={{ rotate: 0, scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                    >
+                      {nameEmoji}
+                    </motion.span>
+                  )}
+                  <motion.div
+                    className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text"
+                  >
+                    <span className="text-2xl font-bold">
+                      {isGenerating ? '✨' : playerName || 'Your Name'}
+                    </span>
+                  </motion.div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {/* Regenerate button */}
+            <motion.button
+              onClick={generateNewName}
+              disabled={isGenerating}
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-purple-100 to-pink-100 
+                        hover:from-purple-200 hover:to-pink-200 transition-all duration-300
+                        text-purple-700 font-medium flex items-center justify-center gap-2
+                        disabled:opacity-50 border-2 border-dashed border-purple-300
+                        hover:border-purple-400 group"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <motion.span
+                animate={isGenerating ? { rotate: 360 } : {}}
+                transition={{ duration: 0.5, repeat: isGenerating ? Infinity : 0 }}
+                className="text-xl"
+              >
+                🎲
+              </motion.span>
+              <span>Generate New Name</span>
+              <motion.span
+                className="opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                ✨
+              </motion.span>
+            </motion.button>
+
+            {/* Divider */}
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">or type your own</span>
+              </div>
+            </div>
+
+            {/* Manual input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Your Name
+                Custom Name
               </label>
               <Input
                 value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
+                onChange={(e) => {
+                  setPlayerName(e.target.value);
+                  setNameEmoji(null); // Clear emoji for custom names
+                }}
                 placeholder="Enter your name"
                 maxLength={20}
-                autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreate();
                 }}

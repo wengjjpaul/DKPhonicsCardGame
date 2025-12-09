@@ -1,13 +1,14 @@
 // Online game room page - lobby and game play
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOnlineGame } from '@/hooks/useOnlineGame';
 import { Button, Input, SuitPicker } from '@/components/ui';
 import { PhonicsCard, ActionCard } from '@/components/cards';
 import { Card, isActionCard, isPhonicsCard } from '@/types/card';
+import { generateFunName, getNameEmoji } from '@/lib/names';
 
 // Helper component to render the correct card type
 function GameCard({ card, size = 'md', ...props }: { card: Card; size?: 'sm' | 'md' | 'lg'; selected?: boolean; playable?: boolean; onClick?: () => void }) {
@@ -29,6 +30,8 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
   const { code } = use(params);
   const router = useRouter();
   const [playerName, setPlayerName] = useState('');
+  const [nameEmoji, setNameEmoji] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [showSuitPicker, setShowSuitPicker] = useState(false);
@@ -49,12 +52,27 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
     leaveGame,
   } = useOnlineGame(code);
 
+  // Generate a fun name
+  const generateNewName = useCallback(() => {
+    setIsGenerating(true);
+    setTimeout(() => {
+      const newName = generateFunName();
+      setPlayerName(newName);
+      setNameEmoji(getNameEmoji(newName));
+      setIsGenerating(false);
+    }, 150);
+  }, []);
+
   // Show join form if not a player and game is waiting
   useEffect(() => {
     if (!isLoading && game && !isPlayer && game.status === 'waiting') {
       setShowJoinForm(true);
+      // Generate initial name for joining player
+      if (!playerName) {
+        generateNewName();
+      }
     }
-  }, [isLoading, game, isPlayer]);
+  }, [isLoading, game, isPlayer, playerName, generateNewName]);
 
   // Handle browser/tab close to notify server
   useEffect(() => {
@@ -162,21 +180,98 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">
-              Join Game: {code}
+            <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">
+              Join Game
             </h2>
+            <div className="text-center mb-6">
+              <span className="inline-block bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg font-mono text-xl tracking-widest">
+                {code}
+              </span>
+            </div>
             
             <div className="space-y-4">
+              {/* Name display with emoji */}
+              <div className="text-center mb-4">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={playerName}
+                    initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.8, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="relative"
+                  >
+                    {nameEmoji && (
+                      <motion.span
+                        className="text-5xl block mb-2"
+                        initial={{ rotate: -20, scale: 0 }}
+                        animate={{ rotate: 0, scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                      >
+                        {nameEmoji}
+                      </motion.span>
+                    )}
+                    <motion.div
+                      className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text"
+                    >
+                      <span className="text-2xl font-bold">
+                        {isGenerating ? '✨' : playerName || 'Your Name'}
+                      </span>
+                    </motion.div>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+
+              {/* Regenerate button */}
+              <motion.button
+                onClick={generateNewName}
+                disabled={isGenerating}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-purple-100 to-pink-100 
+                          hover:from-purple-200 hover:to-pink-200 transition-all duration-300
+                          text-purple-700 font-medium flex items-center justify-center gap-2
+                          disabled:opacity-50 border-2 border-dashed border-purple-300
+                          hover:border-purple-400 group"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <motion.span
+                  animate={isGenerating ? { rotate: 360 } : {}}
+                  transition={{ duration: 0.5, repeat: isGenerating ? Infinity : 0 }}
+                  className="text-xl"
+                >
+                  🎲
+                </motion.span>
+                <span>Generate New Name</span>
+                <motion.span
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  ✨
+                </motion.span>
+              </motion.button>
+
+              {/* Divider */}
+              <div className="relative py-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">or type your own</span>
+                </div>
+              </div>
+
+              {/* Manual input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your Name
+                  Custom Name
                 </label>
                 <Input
                   value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
+                  onChange={(e) => {
+                    setPlayerName(e.target.value);
+                    setNameEmoji(null);
+                  }}
                   placeholder="Enter your name"
                   maxLength={20}
-                  autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleJoin();
                   }}
@@ -184,7 +279,13 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
               </div>
               
               {actionError && (
-                <p className="text-red-500 text-sm">{actionError}</p>
+                <motion.p 
+                  className="text-red-500 text-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  {actionError}
+                </motion.p>
               )}
               
               <Button
@@ -198,7 +299,7 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
               
               <button
                 onClick={() => router.push('/online')}
-                className="w-full text-gray-500 hover:text-gray-700"
+                className="w-full text-gray-500 hover:text-gray-700 py-2"
               >
                 Cancel
               </button>
