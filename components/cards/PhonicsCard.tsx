@@ -35,12 +35,30 @@ export function PhonicsCard({
     }
   };
 
+  const handleWordTouch = (e: React.TouchEvent) => {
+    e.stopPropagation(); // Don't trigger card drag
+    e.preventDefault(); // Prevent subsequent click event
+    if (speakOnClick) {
+      speak(card.word);
+    }
+  };
+
   return (
     <Card
       size={size}
       className={cn(bgColor, borderColor, className)}
       {...props}
     >
+      {/* Full card TTS tap area */}
+      {speakOnClick && (
+        <button
+          onClick={handleWordClick}
+          onTouchEnd={handleWordTouch}
+          className="absolute inset-0 z-10 cursor-pointer touch-auto"
+          aria-label={`Hear the word: ${card.word}`}
+        />
+      )}
+
       {/* Suit indicator - top left */}
       <div className={cn('absolute top-2 left-2 flex items-center gap-1', textColor)}>
         <span className="text-lg font-bold">{shape}</span>
@@ -57,11 +75,7 @@ export function PhonicsCard({
       <div className="flex flex-col items-center justify-center flex-1 px-2">
         {showGraphemes ? (
           // Teaching mode: show graphemes separately
-          <div 
-            className="flex gap-0.5 cursor-pointer hover:scale-105 transition-transform"
-            onClick={handleWordClick}
-            title="Click to hear the word"
-          >
+          <div className="flex gap-0.5">
             {card.graphemes.map((g, i) => (
               <span
                 key={i}
@@ -81,27 +95,24 @@ export function PhonicsCard({
           // Normal mode: show word
           <span 
             className={cn(
-              'text-2xl font-bold tracking-wide cursor-pointer hover:scale-105 transition-transform',
+              'text-2xl font-bold tracking-wide',
               textColor,
               isSpeaking && 'animate-pulse'
             )}
-            onClick={handleWordClick}
-            title="Click to hear the word"
           >
             {card.word}
           </span>
         )}
-        {/* Speaker icon */}
-        <button
-          onClick={handleWordClick}
+        {/* Speaker icon - visual indicator only */}
+        <span
           className={cn(
-            'text-sm mt-1 opacity-60 hover:opacity-100 transition-opacity',
-            textColor
+            'text-sm mt-1 opacity-60',
+            textColor,
+            isSpeaking && 'opacity-100'
           )}
-          title="Hear the word"
         >
           🔊
-        </button>
+        </span>
       </div>
 
       {/* Small decorative elements */}

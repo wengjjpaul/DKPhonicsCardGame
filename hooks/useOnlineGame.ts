@@ -5,11 +5,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ClientGameState } from '@/types/game';
 import { Card, isActionCard } from '@/types/card';
 
-// Adaptive polling intervals (3s minimum)
+// Adaptive polling intervals
 const POLL_INTERVALS = {
   waiting: 5000,      // 5 seconds in lobby
-  myTurn: 3000,       // 3 seconds when it's my turn (minimum)
-  otherTurn: 4000,    // 4 seconds when waiting for others
+  myTurn: 1500,       // 1.5 seconds when it's my turn
+  otherTurn: 1500,    // 1.5 seconds when waiting for others
   baseError: 6000,    // 6 seconds after error (doubles on repeated errors)
   maxError: 24000,    // Max 24 seconds between retries
 };
@@ -36,6 +36,7 @@ type OnlineGameState = {
   isMyTurn: boolean;
   canPlayCard: (card: Card) => boolean;
   mustDraw: boolean;
+  isCardBeingPlayed: (cardId: string) => boolean;
 };
 
 export function useOnlineGame(gameCode: string): OnlineGameState {
@@ -45,6 +46,9 @@ export function useOnlineGame(gameCode: string): OnlineGameState {
   const [isPlayer, setIsPlayer] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  
+  // Track cards currently being played to prevent double-plays
+  const [cardsBeingPlayed, setCardsBeingPlayed] = useState<Set<string>>(new Set());
   
   const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateTimeRef = useRef<string | null>(null);
@@ -248,6 +252,26 @@ export function useOnlineGame(gameCode: string): OnlineGameState {
 
   // Play a card
   const playCard = useCallback(async (cardId: string, declaredSuit?: string) => {
+    // Prevent double-plays of the same card
+    if (cardsBeingPlayed.has(cardId)) {
+      return { success: false, error: 'Card is already being played' };
+    }
+    
+    // Mark card as being played
+    setCardsBeingPlayed(prev => new Set(prev).add(cardId));
+    
+    // Optimistically remove the card from the local UI state
+    setGame(prevGame => {
+      if (!prevGame || !prevGame.currentPlayer) return prevGame;
+      return {
+        ...prevGame,
+        currentPlayer: {
+          ...prevGame.currentPlayer,
+          hand: prevGame.currentPlayer.hand.filter(c => c.id !== cardId),
+        },
+      };
+    });
+    
     try {
       const response = await fetch(`/api/game/${gameCode}/play`, {
         method: 'POST',
@@ -258,17 +282,28 @@ export function useOnlineGame(gameCode: string): OnlineGameState {
       const data = await response.json();
       
       if (!response.ok) {
+        // Revert optimistic update on error by refreshing game state
+        await fetchGame(false);
         return { success: false, error: data.error };
       }
       
-      // Refresh game state
+      // Refresh game state to get the authoritative state from server
       await fetchGame(false);
       return { success: true };
     } catch (err) {
       console.error('Error playing card:', err);
+      // Revert optimistic update on error
+      await fetchGame(false);
       return { success: false, error: 'Network error' };
+    } finally {
+      // Remove card from being-played set
+      setCardsBeingPlayed(prev => {
+        const next = new Set(prev);
+        next.delete(cardId);
+        return next;
+      });
     }
-  }, [gameCode, fetchGame]);
+  }, [gameCode, fetchGame, cardsBeingPlayed]);
 
   // Draw a card
   const drawCard = useCallback(async () => {
@@ -342,6 +377,11 @@ export function useOnlineGame(gameCode: string): OnlineGameState {
   // Helper: Check if player must draw
   const mustDraw = game?.currentPlayer?.hand.every(card => !canPlayCard(card)) ?? false;
 
+  // Helper: Check if a card is currently being played
+  const isCardBeingPlayed = useCallback((cardId: string) => {
+    return cardsBeingPlayed.has(cardId);
+  }, [cardsBeingPlayed]);
+
   return {
     game,
     isLoading,
@@ -357,6 +397,7 @@ export function useOnlineGame(gameCode: string): OnlineGameState {
     isMyTurn,
     canPlayCard,
     mustDraw,
+    isCardBeingPlayed,
   };
 }
 

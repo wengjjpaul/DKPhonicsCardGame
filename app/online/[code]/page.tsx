@@ -7,10 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOnlineGame } from '@/hooks/useOnlineGame';
 import { useCelebration } from '@/hooks/useCelebration';
 import { useGameSounds } from '@/hooks/useGameSounds';
+import { useTTS } from '@/hooks/useTTS';
 import { Button, Input, SuitPicker, Celebration } from '@/components/ui';
 import { DraggableCard } from '@/components/cards';
 import { GameDndContext, DroppablePlayPile } from '@/components/game';
-import { Card, isActionCard } from '@/types/card';
+import { Card, isActionCard, isPhonicsCard } from '@/types/card';
 import { generateFunName, getNameEmoji } from '@/lib/names';
 import { cn } from '@/lib/utils';
 
@@ -36,6 +37,9 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
   // Sound effects hook
   const { play: playSound, playWin } = useGameSounds();
 
+  // TTS hook for speaking words
+  const { speak } = useTTS();
+
   // Track previous state for sound triggers
   const prevIsMyTurn = useRef<boolean | null>(null);
   const prevPlayerCount = useRef<number>(0);
@@ -49,6 +53,7 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
     isMyTurn,
     canPlayCard,
     mustDraw,
+    isCardBeingPlayed,
     joinGame,
     startGame,
     playCard,
@@ -145,6 +150,11 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
     const cardIdToPlay = pendingCardId || selectedCardId;
     if (!cardIdToPlay) return;
     
+    // Prevent playing a card that's already being processed
+    if (isCardBeingPlayed(cardIdToPlay)) {
+      return;
+    }
+    
     const card = game?.currentPlayer?.hand.find(c => c.id === cardIdToPlay);
     
     // If it's a change card and no suit selected, show picker
@@ -162,6 +172,10 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
       // Play card sound and celebration
       playSound('cardPlay');
       celebrate('match');
+      // Speak the word if it's a phonics card
+      if (card && isPhonicsCard(card)) {
+        speak(card.word);
+      }
       // Play suit change sound if it was a change card
       if (card && isActionCard(card) && card.action === 'change') {
         playSound('suitChange');
@@ -174,6 +188,11 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
 
   // Handle card drop from drag and drop
   const handleCardDrop = useCallback((cardId: string) => {
+    // Prevent playing a card that's already being processed
+    if (isCardBeingPlayed(cardId)) {
+      return;
+    }
+    
     const card = game?.currentPlayer?.hand.find(c => c.id === cardId);
     if (!card) return;
     
@@ -192,12 +211,16 @@ export default function OnlineGameRoomPage({ params }: PageProps) {
         // Play card sound and celebration
         playSound('cardPlay');
         celebrate('match');
+        // Speak the word if it's a phonics card
+        if (isPhonicsCard(card)) {
+          speak(card.word);
+        }
       } else {
         playSound('error');
         setActionError(result.error || 'Failed to play card');
       }
     });
-  }, [game?.currentPlayer?.hand, playCard, celebrate, playSound]);
+  }, [game?.currentPlayer?.hand, playCard, celebrate, playSound, isCardBeingPlayed, speak]);
 
   // Handle drawing a card
   const handleDraw = async () => {
